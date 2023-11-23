@@ -23,7 +23,7 @@ from tap_intacct.exceptions import (
     WrongParamsError,
 )
 
-from .const import GET_BY_DATE_FIELD, INTACCT_OBJECTS
+from .const import GET_BY_DATE_FIELD
 
 logger = singer.get_logger()
 
@@ -280,18 +280,18 @@ class SageIntacctSDK:
         Returns:
             List of Dict in object_type schema.
         """
-        intacct_object_type = INTACCT_OBJECTS[object_type]
+        intacct_object_type = object_type
         total_intacct_objects = []
         get_count = {
             'query': {
                 'object': intacct_object_type,
                 'select': {'field': 'RECORDNO'},
-                'filter': {
-                    'greaterthanorequalto': {
-                        'field': GET_BY_DATE_FIELD,
-                        'value': _format_date_for_intacct(from_date),
-                    }
-                },
+                # 'filter': {
+                #     'greaterthanorequalto': {
+                #         'field': GET_BY_DATE_FIELD,
+                #         'value': _format_date_for_intacct(from_date),
+                #     }
+                # },
                 'pagesize': '1',
                 'options': {'showprivate': 'true'},
             }
@@ -307,12 +307,12 @@ class SageIntacctSDK:
                     'object': intacct_object_type,
                     'select': {'field': fields},
                     'options': {'showprivate': 'true'},
-                    'filter': {
-                        'greaterthanorequalto': {
-                            'field': GET_BY_DATE_FIELD,
-                            'value': _format_date_for_intacct(from_date),
-                        }
-                    },
+                    # 'filter': {
+                    #     'greaterthanorequalto': {
+                    #         'field': GET_BY_DATE_FIELD,
+                    #         'value': _format_date_for_intacct(from_date),
+                    #     }
+                    # },
                     'pagesize': pagesize,
                     'offset': offset,
                 }
@@ -329,6 +329,20 @@ class SageIntacctSDK:
 
             offset = offset + pagesize
 
+    def get_objects(self):
+        """
+        Inspect list of all object types
+        Returns:
+            List of object types
+        """
+        data = {
+            'inspect': {
+                'object': "*"
+            }
+        }
+
+        response = self.format_and_send_request(data)['data']['type']
+        return [x["@typename"] for x in response]
 
 
     def get_sample(self, intacct_object: str):
@@ -342,11 +356,20 @@ class SageIntacctSDK:
                 'object': intacct_object.upper(),
                 'fields': '*',
                 'query': None,
-                'pagesize': '10',
+                'pagesize':1
             }
         }
 
-        return self.format_and_send_request(data)['data'][intacct_object.lower()]
+        response_raw = self.format_and_send_request(data)['data']
+        response = response_raw.get(response_raw['@listtype'] ,{})
+
+        if type({}) == type(response):
+            return  response.keys()
+        else:
+            keys = [x.keys() for x in response]
+            unique_keys = list(dict.fromkeys([item for sublist in keys for item in sublist]))
+            return unique_keys
+        
 
     def get_fields_data_using_schema_name(self, object_type: str):
         """
@@ -355,7 +378,7 @@ class SageIntacctSDK:
         Returns:
             List of Dict in object_type schema.
         """
-        intacct_object_type = INTACCT_OBJECTS[object_type]
+        intacct_object_type = object_type
 
         # First get the count of object that will be synchronized.
         get_fields = {
@@ -365,6 +388,17 @@ class SageIntacctSDK:
         }
 
         response = self.format_and_send_request(get_fields)
+
+
+
+
+        intacct_object_type = object_type
+
+
+
+
+
+
         return response
 
 def get_client(
