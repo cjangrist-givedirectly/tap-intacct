@@ -7,6 +7,7 @@ import re
 import uuid
 from typing import Dict, List, Union
 from urllib.parse import unquote
+from retrying import retry
 
 import requests
 import xmltodict
@@ -119,7 +120,9 @@ class SageIntacctSDK:
         else:
             raise SageIntacctSDKError('Error: {0}'.format(response['errormessage']))
 
-    @singer.utils.ratelimit(10, 1)
+    # Technically we're allowed up to 10 requests a second, for up to 1,296,000 total per day
+    # https://developer.sage.com/accounting/guides/concepts/best_practices/#:~:text=Rate%20limit%20of%201%2C296%2C000%20requests,at%20any%20time%20(per%20app)
+    @singer.utils.ratelimit(25, 1)
     def _post_request(self, dict_body: dict, api_url: str) -> Dict:
         """
         Create a HTTP post request.
@@ -232,6 +235,7 @@ class SageIntacctSDK:
 
         return errormessages
 
+    @retry(stop_max_attempt_number=20,wait_exponential_multiplier=1000, wait_exponential_max=60000)
     def format_and_send_request(self, data: Dict) -> Union[List, Dict]:
         """
         Format data accordingly to convert them to xml.
